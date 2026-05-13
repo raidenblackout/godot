@@ -40,6 +40,10 @@
 #include <drivers/d3d12/godot_nir.h>
 #include <dxgi1_6.h>
 
+#ifdef WINUI3_ENABLED
+#include <windows.ui.xaml.media.dxinterop.h>
+#endif
+
 #if !defined(_MSC_VER)
 #include <thirdparty/directx_headers/include/dxguids/dxguids.h>
 
@@ -2800,7 +2804,15 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 	}
 	bool create_for_composition = false;
 #endif
+	bool create_for_swap_chain_panel = false;
+#ifdef WINUI3_ENABLED
+	if (surface->swap_chain_panel != nullptr) {
+		create_for_swap_chain_panel = true;
+		create_for_composition = true;
+	}
+#endif
 
+	const bool fresh_swap_chain = (swap_chain->d3d_swap_chain == nullptr);
 	DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
 	if (swap_chain->d3d_swap_chain != nullptr) {
 		_swap_chain_release_buffers(swap_chain);
@@ -2832,6 +2844,7 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 		if (create_for_composition) {
 			res = context_driver->dxgi_factory_get()->CreateSwapChainForComposition(command_queue->d3d_queue.Get(), &swap_chain_desc, nullptr, swap_chain_1.GetAddressOf());
 			if (!SUCCEEDED(res)) {
+				ERR_FAIL_COND_V_MSG(create_for_swap_chain_panel, ERR_CANT_CREATE, "Failed to create swap chain for WinUI3 SwapChainPanel.");
 				WARN_PRINT_ONCE("Window transparency is not supported without DirectComposition on D3D12.");
 				swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
 				has_comp_alpha[(uint64_t)p_cmd_queue.id] = false;
@@ -2848,8 +2861,10 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 		swap_chain_1.As(&swap_chain->d3d_swap_chain);
 		ERR_FAIL_NULL_V(swap_chain->d3d_swap_chain, ERR_CANT_CREATE);
 
-		res = context_driver->dxgi_factory_get()->MakeWindowAssociation(surface->hwnd, DXGI_MWA_NO_ALT_ENTER | DXGI_MWA_NO_WINDOW_CHANGES);
-		ERR_FAIL_COND_V(!SUCCEEDED(res), ERR_CANT_CREATE);
+		if (surface->hwnd != nullptr) {
+			res = context_driver->dxgi_factory_get()->MakeWindowAssociation(surface->hwnd, DXGI_MWA_NO_ALT_ENTER | DXGI_MWA_NO_WINDOW_CHANGES);
+			ERR_FAIL_COND_V(!SUCCEEDED(res), ERR_CANT_CREATE);
+		}
 	}
 
 	if (swap_chain->color_space != new_color_space) {
@@ -2859,8 +2874,28 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 		swap_chain->color_space = new_color_space;
 	}
 
+#ifdef WINUI3_ENABLED
+	if (create_for_swap_chain_panel) {
+		if (fresh_swap_chain) {
+			res = surface->swap_chain_panel->SetSwapChain(swap_chain->d3d_swap_chain.Get());
+			ERR_FAIL_COND_V(!SUCCEEDED(res), ERR_CANT_CREATE);
+		}
+
+		// Reapply the inverse CompositionScale transform on every resize — the scale
+		// may change independently of swap chain recreation.
+		// (IDXGISwapChain3 inherits SetMatrixTransform from IDXGISwapChain2.)
+		DXGI_MATRIX_3X2_F transform = {
+			1.0f / surface->composition_scale_x, 0.0f,
+			0.0f, 1.0f / surface->composition_scale_y,
+			0.0f, 0.0f
+		};
+		res = swap_chain->d3d_swap_chain->SetMatrixTransform(&transform);
+		ERR_FAIL_COND_V(!SUCCEEDED(res), ERR_CANT_CREATE);
+	}
+#endif
+
 #ifdef DCOMP_ENABLED
-	if (create_for_composition) {
+	if (create_for_composition && !create_for_swap_chain_panel) {
 		if (surface->composition_device.Get() == nullptr) {
 			using PFN_DCompositionCreateDevice = HRESULT(WINAPI *)(IDXGIDevice *, REFIID, void **);
 			PFN_DCompositionCreateDevice pfn_DCompositionCreateDevice = (PFN_DCompositionCreateDevice)(void *)GetProcAddress(context_driver->lib_dcomp, "DCompositionCreateDevice");

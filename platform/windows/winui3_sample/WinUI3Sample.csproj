@@ -12,6 +12,9 @@
     <WindowsPackageType>None</WindowsPackageType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
+    <!-- Bundle the WindowsAppSDK runtime so the sample runs without
+         requiring the user to install the WindowsAppRuntime 1.6 separately. -->
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,10 +22,8 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.3233" />
   </ItemGroup>
 
-  <!-- Godot bridge source — shared with the engine. -->
-  <ItemGroup>
-    <Compile Include="..\godot_winui3_embed.cs" Link="GodotWinUI3Embed.cs" />
-  </ItemGroup>
+  <!-- godot_winui3_embed.cs lives under Interop/ and is picked up by SDK
+       auto-include; no explicit Compile entry needed. -->
 
   <!-- Bundle the sample IMDF map + rooms data next to the exe. MapViewModel
        reads these via AppContext.BaseDirectory at runtime. -->
@@ -35,17 +36,19 @@
   <!-- Copy the engine DLL next to the sample exe and rename to godot.dll so
        the [DllImport("godot")] in GodotWinUI3Embed.cs resolves. -->
   <ItemGroup>
-    <Content Include="..\..\..\bin\godot.windows.template_release.x86_64.dll"
-             Condition="Exists('..\..\..\bin\godot.windows.template_release.x86_64.dll')">
+    <Content Include="..\..\..\bin\godot.windows.template_release.x86_64.dll" Condition="Exists('..\..\..\bin\godot.windows.template_release.x86_64.dll')">
       <Link>godot.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\..\bin\D3D12Core.dll"
-             Condition="Exists('..\..\..\bin\D3D12Core.dll')">
+    <Content Include="..\..\..\bin\D3D12Core.dll" Condition="Exists('..\..\..\bin\D3D12Core.dll')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\..\..\bin\d3d12SDKLayers.dll"
-             Condition="Exists('..\..\..\bin\d3d12SDKLayers.dll')">
+    <Content Include="..\..\..\bin\d3d12SDKLayers.dll" Condition="Exists('..\..\..\bin\d3d12SDKLayers.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="Assets\TestProject.pck">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

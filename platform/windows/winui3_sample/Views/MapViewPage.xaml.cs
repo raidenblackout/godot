@@ -258,10 +258,12 @@ public sealed partial class MapViewPage : Page
 
 	private static string ResolveProjectPath()
 	{
-		// Prefer a MapViewProject folder copied next to the exe (production
-		// scenarios), then fall back to the repo path used during development.
-		var sibling = Path.Combine(AppContext.BaseDirectory, "MapViewProject");
-		if (Directory.Exists(sibling)) return sibling;
+		// Prefer the TestProject.pck copied next to the exe by the csproj
+		// (production-style deployment). Fall back to the dev path.
+		var sibling = Path.Combine(AppContext.BaseDirectory, "Assets", "TestProject.pck");
+		if (File.Exists(sibling)) return sibling;
+		var siblingFlat = Path.Combine(AppContext.BaseDirectory, "TestProject.pck");
+		if (File.Exists(siblingFlat)) return siblingFlat;
 		return DefaultProjectPath;
 	}
 }

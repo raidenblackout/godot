@@ -60,7 +60,7 @@ public sealed class HostInteropEngine : IDisposable
 		GodotWinUI3Embed.SetLogCallback(OnGodotLog);
 		GodotWinUI3Embed.SetEmbeddedParentHwnd(hostHwnd);
 
-		string[] args = { "godot", "--path", ProjectPath, "--rendering-driver", RenderingDriver };
+		string[] args = { "godot", "--main-pack", ProjectPath, "--rendering-driver", RenderingDriver };
 		if (!GodotWinUI3Embed.EngineSetup(args))
 		{
 			Debug.WriteLine("[HostInteropEngine] EngineSetup failed.");

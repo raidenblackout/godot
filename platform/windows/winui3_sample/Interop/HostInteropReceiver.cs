@@ -133,6 +133,16 @@ public sealed class HostInteropReceiver : IDisposable
 		Instance = this;
 	}
 
+	/// <summary>
+	/// Synchronous provider for <c>get_devices</c> calls from GDScript.
+	/// Set this from host code (e.g. MapViewPage) to inject a JSON-serializable
+	/// payload — the dispatcher invokes it on the engine/UI thread and returns
+	/// the JSON string straight back to <c>WinUI3Host.send_to_host(...)</c> on
+	/// the engine side. Default returns a small mock list so the round-trip is
+	/// visible even before the host wires up real device enumeration.
+	/// </summary>
+	public Func<string>? GetDevicesProvider { get; set; }
+
 	#region Events
 
 	/// <summary>
@@ -231,6 +241,16 @@ public sealed class HostInteropReceiver : IDisposable
 
 		try
 		{
+			// Synchronous fast-path for request/response-style calls. The
+			// default category dispatchers use SynchronizationContext.Post —
+			// fire-and-forget — so a handler running there can't populate the
+			// return value in time. Anything that needs a synchronous reply
+			// to the GDScript caller is handled here before the async fan-out.
+			if (method == "get_devices")
+			{
+				return GetDevicesResponse();
+			}
+
 			// Parse the command to determine routing
 			var commandInfo = ParseCommand(method, argsJson);
 
@@ -387,6 +407,38 @@ public sealed class HostInteropReceiver : IDisposable
 			Category = command.Category,
 			Timestamp = DateTime.UtcNow
 		};
+	}
+
+	/// <summary>
+	/// Builds the JSON response for a <c>get_devices</c> call. Uses the
+	/// host-supplied <see cref="GetDevicesProvider"/> if one is registered;
+	/// otherwise emits a small mock list so the round-trip can be exercised
+	/// before real device enumeration is wired up.
+	/// </summary>
+	private string GetDevicesResponse()
+	{
+		if (GetDevicesProvider != null)
+		{
+			try
+			{
+				return GetDevicesProvider() ?? "[]";
+			}
+			catch (Exception ex)
+			{
+				System.Diagnostics.Debug.WriteLine($"[HostInteropReceiver] GetDevicesProvider threw: {ex.Message}");
+				return SerializeError(ex.Message) ?? "[]";
+			}
+		}
+
+		var mock = new object[]
+		{
+			new { id = "dev-1", name = "Living Room Light", type = "switch", on = true },
+			new { id = "dev-2", name = "Kitchen Temperature", type = "sensor", value = 22.5, unit = "C" },
+			new { id = "dev-3", name = "Front Door Lock", type = "lock", locked = true },
+			new { id = "dev-4", name = "Bedroom Hue", type = "color_light", on = false, color = "#ff9933" },
+			new { host = Environment.MachineName, user = Environment.UserName, time = DateTime.UtcNow.ToString("o") },
+		};
+		return JsonSerializer.Serialize(mock, _jsonOptions);
 	}
 
 	/// <summary>

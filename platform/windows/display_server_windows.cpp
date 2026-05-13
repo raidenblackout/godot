@@ -8127,6 +8127,18 @@ DisplayServerWindows::DisplayServerWindows(const String &p_rendering_driver, Dis
 				}
 			}
 
+#if defined(WINUI3_ENABLED) && defined(D3D12_ENABLED)
+			// D3D12 consumed the panel but context setup failed; roll back so a
+			// Vulkan fallback does not inherit a stale panel and _winui3_active flag.
+			if (_winui3_active) {
+				WindowData &wd_main = windows[DisplayServerEnums::MAIN_WINDOW_ID];
+				if (wd_main.swap_chain_panel) {
+					wd_main.swap_chain_panel->Release();
+					wd_main.swap_chain_panel = nullptr;
+				}
+				_winui3_active = false;
+			}
+#endif
 			memdelete(rendering_context);
 			rendering_context = nullptr;
 		}

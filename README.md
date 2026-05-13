@@ -1,4 +1,4 @@
-# Godot Engine
+# Godot WinUI3 SwapChainPanel Fork
 
 <p align="center">
   <a href="https://godotengine.org">
@@ -6,71 +6,187 @@
   </a>
 </p>
 
-## 2D and 3D cross-platform game engine
+This fork of [Godot Engine](https://godotengine.org) adds an experimental
+Windows embedding path for hosting Godot inside a WinUI3
+`SwapChainPanel`.
 
-**[Godot Engine](https://godotengine.org) is a feature-packed, cross-platform
-game engine to create 2D and 3D games from a unified interface.** It provides a
-comprehensive set of [common tools](https://godotengine.org/features), so that
-users can focus on making games without having to reinvent the wheel. Games can
-be exported with one click to a number of platforms, including the major desktop
-platforms (Linux, macOS, Windows), mobile platforms (Android, iOS), as well as
-Web-based platforms and [consoles](https://godotengine.org/consoles).
+The upstream Godot engine normally presents its D3D12 swap chain directly to a
+Win32 `HWND`. This fork adds a WinUI3-specific path where a WinUI3 host process
+loads Godot as a DLL, passes an `ISwapChainPanelNative*` to the engine, and lets
+Godot render into a DXGI composition swap chain owned by the XAML visual tree.
 
-## Free, open source and community-driven
+## What This Fork Adds
 
-Godot is completely free and open source under the very permissive [MIT license](https://godotengine.org/license).
-No strings attached, no royalties, nothing. The users' games are theirs, down
-to the last line of engine code. Godot's development is fully independent and
-community-driven, empowering users to help shape their engine to match their
-expectations. It is supported by the [Godot Foundation](https://godot.foundation/)
-not-for-profit.
+Compared with upstream Godot master, this branch adds:
 
-Before being open sourced in [February 2014](https://github.com/godotengine/godot/commit/0b806ee0fc9097fa7bda7ac0109191c9c5e0a1ac),
-Godot had been developed by [Juan Linietsky](https://github.com/reduz) and
-[Ariel Manzur](https://github.com/punto-) for several years as an in-house
-engine, used to publish several work-for-hire titles.
+- A Windows SCons option: `winui3=yes`.
+- D3D12 SwapChainPanel presentation using `CreateSwapChainForComposition` and
+  `ISwapChainPanelNative::SetSwapChain`.
+- Composition scale handling through `IDXGISwapChain2::SetMatrixTransform`, so
+  a physical-pixel backbuffer fits the WinUI3 panel's DIP-sized layout area.
+- A host-facing C ABI in `platform/windows/godot_winui3_embed.h` for engine
+  lifecycle, panel binding, resize/DPI updates, input injection, logging, and
+  host/engine calls.
+- DisplayServer support for an embedded parent `HWND`, child-window sizing, and
+  optional XAML-routed input.
+- A `WinUI3Host` Godot singleton for JSON message passing between GDScript and
+  the native WinUI3 host.
+- A C# WinUI3 sample app under `platform/windows/winui3_sample`.
 
-![Screenshot of a 3D scene in the Godot Engine editor](https://raw.githubusercontent.com/godotengine/godot-design/master/screenshots/editor_tps_demo_1920x1080.jpg)
+## Current Scope
 
-## Getting the engine
+This is not a general replacement for Godot's normal Windows platform port. It
+is a fork for applications that need to embed a running Godot project inside a
+WinUI3 XAML UI.
 
-### Binary downloads
+Supported path:
 
-Official binaries for the Godot editor and the export templates can be found
-[on the Godot website](https://godotengine.org/download).
+- Windows desktop.
+- MSVC builds.
+- D3D12 rendering.
+- Godot built as a shared library.
+- WinUI3 host apps that can pass an `ISwapChainPanelNative` pointer.
 
-### Compiling from source
+Important constraints:
 
-[See the official docs](https://docs.godotengine.org/en/latest/engine_details/development/compiling)
-for compilation instructions for every supported platform.
+- `winui3=yes` requires `library_type=shared_library`.
+- `winui3=yes` requires D3D12.
+- MinGW does not enable this feature; the build option is ignored there.
+- Pre-initialization panel binding is intended for the main Godot window
+  (`window_id = 0`).
+- Host calls, engine calls, input injection, and `EngineIteration` should run
+  on the same thread, normally the WinUI3 UI thread.
 
-## Community and contributing
+## Building
 
-Godot is not only an engine but an ever-growing community of users and engine
-developers. The main community channels are listed [on the homepage](https://godotengine.org/community).
+Install the normal Godot Windows build prerequisites, including the D3D12
+dependencies:
 
-The best way to get in touch with the core engine developers is to join the
-[Godot Contributors Chat](https://chat.godotengine.org).
+```powershell
+python misc/scripts/install_d3d12_sdk_windows.py
+```
 
-To get started contributing to the project, see the [contributing guide](CONTRIBUTING.md).
-This document also includes guidelines for reporting bugs.
+Build the Windows template DLL with WinUI3 support:
 
-## Documentation and demos
+```powershell
+scons platform=windows target=template_release arch=x86_64 d3d12=yes library_type=shared_library winui3=yes
+```
 
-The official documentation is hosted on [Read the Docs](https://docs.godotengine.org).
-It is maintained by the Godot community in its own [GitHub repository](https://github.com/godotengine/godot-docs).
+The sample project expects the resulting DLL at:
 
-The [class reference](https://docs.godotengine.org/en/latest/classes/)
-is also accessible from the Godot editor.
+```text
+bin/godot.windows.template_release.x86_64.dll
+```
 
-We also maintain official demos in their own [GitHub repository](https://github.com/godotengine/godot-demo-projects)
-as well as a list of [awesome Godot community resources](https://github.com/godotengine/awesome-godot).
+and copies it next to the WinUI3 executable as `godot.dll`.
 
-There are also a number of other
-[learning resources](https://docs.godotengine.org/en/latest/community/tutorials.html)
-provided by the community, such as text and video tutorials, demos, etc.
-Consult the [community channels](https://godotengine.org/community)
-for more information.
+## Host Integration
 
-[![Code Triagers Badge](https://www.codetriage.com/godotengine/godot/badges/users.svg)](https://www.codetriage.com/godotengine/godot)
-[![Translate on Weblate](https://hosted.weblate.org/widgets/godot-engine/-/godot/svg-badge.svg)](https://hosted.weblate.org/engage/godot-engine/?utm_source=widget)
+The C ABI is declared in:
+
+```text
+platform/windows/godot_winui3_embed.h
+```
+
+The basic host order is:
+
+1. Install an optional log callback with `godot_winui3_set_log_callback`.
+2. Pass the WinUI3 window `HWND` with `godot_winui3_set_embedded_parent_hwnd`.
+3. Call `godot_winui3_engine_setup`.
+4. Pass the panel's `ISwapChainPanelNative*` with
+   `godot_winui3_set_swap_chain_panel`.
+5. Set initial composition scale and physical-pixel size with
+   `godot_winui3_set_composition_scale` and
+   `godot_winui3_notify_panel_resize`.
+6. Call `godot_winui3_engine_start`.
+7. Drive frames by calling `godot_winui3_engine_iteration`.
+8. Call `godot_winui3_engine_shutdown` before the host exits.
+
+For a C# host, the sample obtains the panel pointer with:
+
+```csharp
+var panelPtr = Marshal.GetComInterfaceForObject(
+    GodotPanel,
+    typeof(ISwapChainPanelNative));
+```
+
+## Input Modes
+
+The fork exposes two input modes through `godot_winui3_set_input_mode`:
+
+- `GODOT_WINUI3_INPUT_NATIVE`: Godot's Windows `WndProc` handles normal Win32
+  mouse and keyboard messages. This is the default.
+- `GODOT_WINUI3_INPUT_XAML`: Godot suppresses Win32 mouse/key messages for the
+  embedded window. The WinUI3 host forwards XAML pointer/key events through
+  `godot_winui3_inject_mouse_button`, `godot_winui3_inject_mouse_motion`,
+  `godot_winui3_inject_mouse_wheel`, and `godot_winui3_inject_key`.
+
+The sample app demonstrates the XAML injection path on a `SwapChainPanel`.
+
+## Host And Engine Messages
+
+This fork registers a Godot singleton named `WinUI3Host` when `winui3=yes` is
+enabled. It provides a JSON message bridge:
+
+```gdscript
+WinUI3Host.send_to_host(method: StringName, args: Array = []) -> Variant
+WinUI3Host.register_handler(method: StringName, handler: Callable) -> void
+WinUI3Host.unregister_handler(method: StringName) -> void
+WinUI3Host.has_handler(method: StringName) -> bool
+
+signal host_message_received(method: StringName, args: Array)
+```
+
+On the host side, use `godot_winui3_call_engine` to call registered GDScript
+handlers, and `godot_winui3_set_host_message_callback` to receive
+`WinUI3Host.send_to_host` messages.
+
+Payloads cross the native boundary as UTF-8 JSON. Return strings allocated by
+`godot_winui3_call_engine` must be released with `godot_winui3_free_string`.
+
+## Sample App
+
+The sample WinUI3 host lives in:
+
+```text
+platform/windows/winui3_sample
+```
+
+It is a .NET 8 WinUI3 app using Windows App SDK 1.6. It hosts Godot in
+`Views/MapViewPage.xaml` using a `SwapChainPanel`, drives the engine from a
+`DispatcherQueueTimer`, forwards pointer/key events, and demonstrates JSON
+message passing between the host and the Godot project.
+
+After building the Godot DLL, open or build:
+
+```text
+platform/windows/winui3_sample/WinUI3Sample.csproj
+```
+
+The project copies `bin/godot.windows.template_release.x86_64.dll` as
+`godot.dll` when that file exists.
+
+## Key Files
+
+- `platform/windows/godot_winui3_embed.h`
+- `platform/windows/godot_winui3_embed.cpp`
+- `platform/windows/winui3_host_bridge.h`
+- `platform/windows/winui3_host_bridge.cpp`
+- `platform/windows/display_server_windows.*`
+- `drivers/d3d12/rendering_context_driver_d3d12.*`
+- `drivers/d3d12/rendering_device_driver_d3d12.cpp`
+- `platform/windows/winui3_sample/Interop/godot_winui3_embed.cs`
+- `platform/windows/winui3_sample/Views/MapViewPage.xaml.cs`
+
+## Upstream Godot
+
+Godot is a feature-packed, cross-platform 2D and 3D game engine distributed
+under the permissive [MIT license](https://godotengine.org/license).
+
+For general Godot documentation, builds, community links, and contribution
+guidelines, see:
+
+- [Godot website](https://godotengine.org)
+- [Godot documentation](https://docs.godotengine.org)
+- [Contributing guide](CONTRIBUTING.md)
+- [Official Godot repository](https://github.com/godotengine/godot)

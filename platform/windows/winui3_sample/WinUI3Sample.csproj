@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <RootNamespace>GodotWinUI3Sample</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <WindowsPackageType>None</WindowsPackageType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.241114003" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.3233" />
+  </ItemGroup>
+
+  <!-- Godot bridge source — shared with the engine. -->
+  <ItemGroup>
+    <Compile Include="..\godot_winui3_embed.cs" Link="GodotWinUI3Embed.cs" />
+  </ItemGroup>
+
+  <!-- Bundle the sample IMDF map + rooms data next to the exe. MapViewModel
+       reads these via AppContext.BaseDirectory at runtime. -->
+  <ItemGroup>
+    <Content Include="Assets\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Copy the engine DLL next to the sample exe and rename to godot.dll so
+       the [DllImport("godot")] in GodotWinUI3Embed.cs resolves. -->
+  <ItemGroup>
+    <Content Include="..\..\..\bin\godot.windows.template_release.x86_64.dll"
+             Condition="Exists('..\..\..\bin\godot.windows.template_release.x86_64.dll')">
+      <Link>godot.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\..\bin\D3D12Core.dll"
+             Condition="Exists('..\..\..\bin\D3D12Core.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\..\bin\d3d12SDKLayers.dll"
+             Condition="Exists('..\..\..\bin\d3d12SDKLayers.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

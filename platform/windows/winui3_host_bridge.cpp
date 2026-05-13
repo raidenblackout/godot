@@ -94,7 +94,12 @@ Variant WinUI3HostBridge::send_to_host(const StringName &p_method, const Array &
 		return Variant();
 	}
 
-	return JSON::parse_string(ret_json);
+	JSON json_parser;
+	if (json_parser.parse(ret_json) != OK) {
+		ERR_PRINT(vformat("WinUI3HostBridge: bad return JSON (line %d): %s", json_parser.get_error_line(), json_parser.get_error_message()));
+		return Variant();
+	}
+	return json_parser.get_data();
 }
 
 void WinUI3HostBridge::register_handler(const StringName &p_method, const Callable &p_handler) {
@@ -125,7 +130,12 @@ void WinUI3HostBridge::set_pending_return(const String &p_json) {
 String WinUI3HostBridge::dispatch_host_call(const String &p_method, const String &p_args_json) {
 	Variant args_var;
 	if (!p_args_json.is_empty()) {
-		args_var = JSON::parse_string(p_args_json);
+		JSON json_parser;
+		if (json_parser.parse(p_args_json) != OK) {
+			ERR_PRINT(vformat("WinUI3HostBridge: bad args JSON (line %d): %s", json_parser.get_error_line(), json_parser.get_error_message()));
+			return String();
+		}
+		args_var = json_parser.get_data();
 	}
 
 	Array args;

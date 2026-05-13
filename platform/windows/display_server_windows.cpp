@@ -7430,8 +7430,8 @@ Error DisplayServerWindows::_create_rendering_context_window(DisplayServerEnums:
 
 	Vector2i off = (wd.multiwindow_fs || (!wd.fullscreen && wd.borderless && wd.maximized)) ? _get_screen_expand_offset(window_get_current_screen(p_window_id)) : Vector2i();
 	rendering_context->window_set_size(p_window_id, wd.width + off.x, wd.height + off.y);
-#ifdef WINUI3_ENABLED
-	{
+#if defined(WINUI3_ENABLED) && defined(D3D12_ENABLED)
+	if (p_rendering_driver == "d3d12") {
 		RenderingContextDriver::SurfaceID surface = rendering_context->surface_get_from_window(p_window_id);
 		if (surface) {
 			static_cast<RenderingContextDriverD3D12 *>(rendering_context)->surface_set_composition_scale(surface, wd.composition_scale_x, wd.composition_scale_y);
@@ -8522,8 +8522,8 @@ void DisplayServerWindows::window_set_composition_scale(DisplayServerEnums::Wind
 	wd.composition_scale_x = p_scale_x;
 	wd.composition_scale_y = p_scale_y;
 
-#if defined(RD_ENABLED)
-	if (rendering_context != nullptr && wd.rendering_context_window_created) {
+#if defined(RD_ENABLED) && defined(D3D12_ENABLED)
+	if (rendering_driver == "d3d12" && rendering_context != nullptr && wd.rendering_context_window_created) {
 		RenderingContextDriver::SurfaceID surface = rendering_context->surface_get_from_window(p_window_id);
 		if (surface) {
 			static_cast<RenderingContextDriverD3D12 *>(rendering_context)->surface_set_composition_scale(surface, p_scale_x, p_scale_y);
@@ -8587,6 +8587,10 @@ void DisplayServerWindows::_winui3_inject_mouse_motion(DisplayServerEnums::Windo
 	DisplayServerWindows *ds = static_cast<DisplayServerWindows *>(DisplayServer::get_singleton());
 	ERR_FAIL_COND(!ds->windows.has(p_window_id));
 	ds->windows[p_window_id].last_pos = Point2(p_x, p_y);
+	ds->old_x = (int)p_x;
+	ds->old_y = (int)p_y;
+	ds->old_invalid = false;
+	Input::get_singleton()->set_mouse_position(Point2i(p_x, p_y));
 }
 
 static void _send_scroll_event(DisplayServerEnums::WindowID p_win,

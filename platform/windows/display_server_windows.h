@@ -826,7 +826,7 @@ public:
 
 	// Runtime input-routing mode. NATIVE (default): Win32 WM_* messages reach WndProc normally.
 	// XAML: WndProc suppresses all mouse/keyboard WM_* messages; the host injects input via the
-	// godot_winui3_inject_* C API instead. Must be set before the first frame.
+	// _winui3_inject_* methods instead. Must be set before the first frame.
 	enum WinUI3InputMode {
 		WINUI3_INPUT_NATIVE = 0,
 		WINUI3_INPUT_XAML = 1,

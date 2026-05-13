@@ -8082,13 +8082,19 @@ DisplayServerWindows::DisplayServerWindows(const String &p_rendering_driver, Dis
 				{
 					WindowData &wd_main = windows[DisplayServerEnums::MAIN_WINDOW_ID];
 					if (_pending_swap_chain_panel != nullptr) {
-						if (wd_main.swap_chain_panel) {
-							wd_main.swap_chain_panel->Release();
+#ifdef D3D12_ENABLED
+						if (tested_rendering_driver == "d3d12") {
+							if (wd_main.swap_chain_panel) {
+								wd_main.swap_chain_panel->Release();
+							}
+							wd_main.swap_chain_panel = _pending_swap_chain_panel;
+							// wd_main.swap_chain_panel now owns the ref held by _pending_swap_chain_panel.
+							_pending_swap_chain_panel = nullptr;
+							_winui3_active = true;
 						}
-						wd_main.swap_chain_panel = _pending_swap_chain_panel;
-						// wd_main.swap_chain_panel now owns the ref held by _pending_swap_chain_panel.
-						_pending_swap_chain_panel = nullptr;
-						_winui3_active = true;
+						// If not d3d12, leave _pending_swap_chain_panel set; it will be consumed on
+						// the d3d12 driver attempt, or reported as an error after the loop.
+#endif
 					}
 					wd_main.composition_scale_x = _pending_composition_scale_x;
 					wd_main.composition_scale_y = _pending_composition_scale_y;
@@ -8125,6 +8131,14 @@ DisplayServerWindows::DisplayServerWindows(const String &p_rendering_driver, Dis
 			rendering_context = nullptr;
 		}
 	}
+
+#if defined(WINUI3_ENABLED) && defined(D3D12_ENABLED)
+	if (_pending_swap_chain_panel != nullptr) {
+		ERR_PRINT("WinUI3: SwapChainPanel requires D3D12 but the active rendering driver is \"" + rendering_driver + "\"; the panel will be ignored.");
+		_pending_swap_chain_panel->Release();
+		_pending_swap_chain_panel = nullptr;
+	}
+#endif
 
 	bool rendering_driver_failed = rendering_driver_count != 0 && rendering_context == nullptr;
 
@@ -8467,6 +8481,11 @@ void DisplayServerWindows::window_set_swap_chain_panel(DisplayServerEnums::Windo
 	WindowData &wd = windows[p_window_id];
 
 #ifdef WINUI3_ENABLED
+#ifdef D3D12_ENABLED
+	ERR_FAIL_COND_MSG(rendering_driver != "d3d12",
+			vformat("WinUI3: window_set_swap_chain_panel requires D3D12 but the active driver is \"%s\".", rendering_driver));
+#endif
+
 	if (wd.swap_chain_panel) {
 		wd.swap_chain_panel->Release();
 		wd.swap_chain_panel = nullptr;

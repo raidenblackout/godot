@@ -266,6 +266,12 @@ def get_opts():
             "Path to the PIX runtime distribution (optional for D3D12)",
             os.path.join(deps_folder, "pix"),
         ),
+        # WinUI3 SwapChainPanel embedding.
+        BoolVariable(
+            "winui3",
+            "Enable WinUI3 SwapChainPanel embedding support (requires library_type=shared_library)",
+            False,
+        ),
     ]
 
 
@@ -1036,6 +1042,23 @@ def configure(env: "SConsEnvironment"):
         configure_msvc(env)
     else:
         configure_mingw(env)
+
+    if env["winui3"]:
+        if env.msvc:
+            if not env["d3d12"]:
+                print_error(
+                    'WinUI3 embedding (winui3=yes) requires Direct3D 12; enable it by passing "d3d12=yes" to the SCons command line.'
+                )
+                sys.exit(255)
+            if env["library_type"] != "shared_library":
+                print_error(
+                    'WinUI3 embedding (winui3=yes) requires a shared library build; pass "library_type=shared_library" to the SCons command line.'
+                )
+                sys.exit(255)
+            env["supported"].append("winui3")
+        else:
+            print_warning("WinUI3 embedding (winui3=yes) requires MSVC; ignoring on MinGW.")
+            env["winui3"] = False
 
 
 def check_d3d12_installed(env, suffix):

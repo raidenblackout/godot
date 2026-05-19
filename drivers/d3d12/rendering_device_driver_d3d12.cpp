@@ -2808,9 +2808,15 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 #ifdef WINUI3_ENABLED
 	if (surface->swap_chain_panel != nullptr) {
 		create_for_swap_chain_panel = true;
+		// SwapChainPanel can only consume a swap chain created via
+		// CreateSwapChainForComposition. Composition alpha (PREMULTIPLIED) is a
+		// separate decision: only enable it when the project actually opted into
+		// per-pixel transparency, otherwise the XAML page background bleeds
+		// through wherever the engine writes alpha < 1.
 		create_for_composition = true;
 	}
 #endif
+	const bool use_composition_alpha = create_for_composition && (!create_for_swap_chain_panel || OS::get_singleton()->is_layered_allowed());
 
 	const bool fresh_swap_chain = (swap_chain->d3d_swap_chain == nullptr);
 	DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
@@ -2830,7 +2836,7 @@ Error RenderingDeviceDriverD3D12::swap_chain_resize(CommandQueueID p_cmd_queue, 
 		swap_chain_desc.SampleDesc.Count = 1;
 		swap_chain_desc.Flags = creation_flags;
 		swap_chain_desc.Scaling = DXGI_SCALING_STRETCH;
-		if (create_for_composition) {
+		if (use_composition_alpha) {
 			swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
 			has_comp_alpha[(uint64_t)p_cmd_queue.id] = true;
 		} else {
